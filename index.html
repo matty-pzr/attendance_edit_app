@@ -1,126 +1,110 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Attendance</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
             --tg-theme-bg-color: #ffffff;
             --tg-theme-text-color: #000000;
             --tg-theme-button-color: #3390ec;
-            --tg-theme-button-text-color: #ffffff;
             --tg-theme-secondary-bg-color: #f4f4f5;
         }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--tg-theme-secondary-bg-color);
-            color: var(--tg-theme-text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
+        body { 
+            font-family: -apple-system, sans-serif; 
+            padding: 20px; 
+            background: var(--tg-theme-secondary-bg-color); 
+            color: var(--tg-theme-text-color); 
         }
-
-        .card {
-            background-color: var(--tg-theme-bg-color);
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        .card { 
+            background: var(--tg-theme-bg-color); 
+            padding: 20px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-
-        .form-group {
-            margin-bottom: 15px;
+        label { 
+            display: block; 
+            margin-top: 15px; 
+            font-size: 14px; 
+            font-weight: bold; 
+            opacity: 0.8;
         }
-
-        label {
-            display: block;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 5px;
-            opacity: 0.7;
-        }
-
-        input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            box-sizing: border-box;
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin-top: 5px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
             font-size: 16px;
             background: var(--tg-theme-bg-color);
             color: var(--tg-theme-text-color);
         }
-
-        h2 { margin: 0 0 10px 0; font-size: 18px; }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h2>Attendance Details</h2>
-        <div id="form-container">
-            <div class="form-group">
-                <label>Clock In</label>
-                <input type="text" id="clock_in">
-            </div>
-            <div class="form-group">
-                <label>Clock Out</label>
-                <input type="text" id="clock_out">
-            </div>
-            <div class="form-group">
-                <label>Break Duration (minutes)</label>
-                <input type="number" id="break_duration">
-            </div>
-            <input type="hidden" id="attendance_id">
-        </div>
+        <h3>Edit Attendance</h3>
+        
+        <label>Clock In Time</label>
+        <input type="datetime-local" id="clock_in">
+        
+        <label>Clock Out Time</label>
+        <input type="datetime-local" id="clock_out">
+        
+        <label>Break Duration (minutes)</label>
+        <input type="number" id="break_duration" placeholder="e.g. 30">
+        
+        <input type="hidden" id="attendance_id">
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Opens the app to full height
+        tg.ready();
+        tg.expand();
 
-        // 1. Parse data from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const rawData = urlParams.get('data');
-        
-        if (rawData) {
-            try {
-                const data = JSON.parse(decodeURIComponent(rawData));
-                
-                // 2. Fill the inputs with received data
-                document.getElementById('attendance_id').value = data.id || '';
-                document.getElementById('clock_in').value = data.clock_in || '';
-                document.getElementById('clock_out').value = data.clock_out || '';
-                document.getElementById('break_duration').value = data.break_duration || 0;
-            } catch (e) {
-                console.error("Failed to parse data", e);
-            }
+        // Helper to format "YYYY-MM-DD HH:MM:SS" to "YYYY-MM-DDTHH:MM" for HTML5 inputs
+        function formatToInput(dateString) {
+            if (!dateString) return "";
+            // Replace space with 'T' and remove seconds/milliseconds
+            return dateString.replace(" ", "T").substring(0, 16);
         }
 
-        // 3. Configure the Telegram Main Button
-        tg.MainButton.setText("SAVE ATTENDANCE");
-        tg.MainButton.show();
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const rawData = urlParams.get('data');
 
-        // 4. Handle Save Click
-        tg.MainButton.onClick(() => {
+            if (rawData) {
+                const data = JSON.parse(decodeURIComponent(rawData));
+                
+                // --- PRINT TO CONSOLE ---
+                console.log("Data received from Bot:", data);
+
+                // Populate fields
+                document.getElementById('attendance_id').value = data.id || '';
+                document.getElementById('clock_in').value = formatToInput(data.clock_in);
+                document.getElementById('clock_out').value = formatToInput(data.clock_out);
+                document.getElementById('break_duration').value = data.break_duration || 0;
+            }
+        } catch (err) {
+            console.error("Initialization Error:", err);
+        }
+
+        tg.MainButton.setText("SAVE CHANGES").show().onClick(() => {
             const updatedData = {
                 id: document.getElementById('attendance_id').value,
-                clock_in: document.getElementById('clock_in').value,
-                clock_out: document.getElementById('clock_out').value,
+                clock_in: document.getElementById('clock_in').value.replace("T", " "),
+                clock_out: document.getElementById('clock_out').value.replace("T", " "),
                 break_duration: parseInt(document.getElementById('break_duration').value)
             };
 
-            // Send data back to the bot
-            // Note: This only works in private chats
+            // --- PRINT TO CONSOLE ---
+            console.log("Data sending to Bot:", updatedData);
+
             tg.sendData(JSON.stringify(updatedData));
         });
-
-        // Inform Telegram that the app is ready
-        tg.ready();
     </script>
 </body>
 </html>

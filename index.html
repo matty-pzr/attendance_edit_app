@@ -4,58 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+    <script>var vConsole = new window.VConsole();</script>
+    
     <style>
-        :root {
-            --tg-theme-bg-color: #ffffff;
-            --tg-theme-text-color: #000000;
-            --tg-theme-button-color: #3390ec;
-            --tg-theme-secondary-bg-color: #f4f4f5;
-        }
-        body { 
-            font-family: -apple-system, sans-serif; 
-            padding: 20px; 
-            background: var(--tg-theme-secondary-bg-color); 
-            color: var(--tg-theme-text-color); 
-        }
-        .card { 
-            background: var(--tg-theme-bg-color); 
-            padding: 20px; 
-            border-radius: 12px; 
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        label { 
-            display: block; 
-            margin-top: 15px; 
-            font-size: 14px; 
-            font-weight: bold; 
-            opacity: 0.8;
-        }
-        input { 
-            width: 100%; 
-            padding: 12px; 
-            margin-top: 5px; 
-            border: 1px solid #ddd; 
-            border-radius: 8px; 
-            box-sizing: border-box; 
-            font-size: 16px;
-            background: var(--tg-theme-bg-color);
-            color: var(--tg-theme-text-color);
-        }
+        :root { --tg-theme-bg-color: #fff; --tg-theme-text-color: #000; --tg-theme-secondary-bg-color: #f4f4f5; }
+        body { font-family: sans-serif; padding: 20px; background: var(--tg-theme-secondary-bg-color); color: var(--tg-theme-text-color); }
+        .card { background: var(--tg-theme-bg-color); padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
+        input { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
     </style>
 </head>
 <body>
 
     <div class="card">
         <h3>Edit Attendance</h3>
-        
-        <label>Clock In Time</label>
+        <label>Clock In</label>
         <input type="datetime-local" id="clock_in">
         
-        <label>Clock Out Time</label>
+        <label>Clock Out</label>
         <input type="datetime-local" id="clock_out">
         
-        <label>Break Duration (minutes)</label>
-        <input type="number" id="break_duration" placeholder="e.g. 30">
+        <label>Break (min)</label>
+        <input type="number" id="break_duration">
         
         <input type="hidden" id="attendance_id">
     </div>
@@ -65,45 +36,42 @@
         tg.ready();
         tg.expand();
 
-        // Helper to format "YYYY-MM-DD HH:MM:SS" to "YYYY-MM-DDTHH:MM" for HTML5 inputs
-        function formatToInput(dateString) {
-            if (!dateString) return "";
-            // Replace space with 'T' and remove seconds/milliseconds
-            return dateString.replace(" ", "T").substring(0, 16);
+        // Helper: Convert ISO (2025-12-31T03:29) to HTML Input Format
+        function formatToInput(val) {
+            if (!val) return "";
+            return val.substring(0, 16); // Extract YYYY-MM-DDTHH:mm
         }
+
+        console.log("Full URL:", window.location.href);
 
         try {
             const urlParams = new URLSearchParams(window.location.search);
-            const rawData = urlParams.get('data');
+            const rawData = urlParams.get('data'); // This MUST match the Python ?data= key
 
             if (rawData) {
                 const data = JSON.parse(decodeURIComponent(rawData));
-                
-                // --- PRINT TO CONSOLE ---
-                console.log("Data received from Bot:", data);
+                console.log("Parsed Data:", data);
 
-                // Populate fields
                 document.getElementById('attendance_id').value = data.id || '';
                 document.getElementById('clock_in').value = formatToInput(data.clock_in);
                 document.getElementById('clock_out').value = formatToInput(data.clock_out);
                 document.getElementById('break_duration').value = data.break_duration || 0;
+            } else {
+                console.error("No 'data' parameter found in URL");
             }
         } catch (err) {
             console.error("Initialization Error:", err);
         }
 
-        tg.MainButton.setText("SAVE CHANGES").show().onClick(() => {
-            const updatedData = {
+        tg.MainButton.setText("SAVE").show().onClick(() => {
+            const updated = {
                 id: document.getElementById('attendance_id').value,
-                clock_in: document.getElementById('clock_in').value.replace("T", " "),
-                clock_out: document.getElementById('clock_out').value.replace("T", " "),
+                clock_in: document.getElementById('clock_in').value,
+                clock_out: document.getElementById('clock_out').value,
                 break_duration: parseInt(document.getElementById('break_duration').value)
             };
-
-            // --- PRINT TO CONSOLE ---
-            console.log("Data sending to Bot:", updatedData);
-
-            tg.sendData(JSON.stringify(updatedData));
+            console.log("Sending back:", updated);
+            tg.sendData(JSON.stringify(updated));
         });
     </script>
 </body>

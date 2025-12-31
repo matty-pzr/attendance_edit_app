@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -210,235 +211,127 @@
         tg.ready();
         tg.expand();
 
-        // Get attendance data from URL parameters
+        // 1. Získání parametrů z URL
         const urlParams = new URLSearchParams(window.location.search);
         let attendanceId = urlParams.get('attendance_id');
         let attendanceDataParam = urlParams.get('data');
-
-        // Debug: Log the URL to help diagnose issues
-        console.log('Current URL:', window.location.href);
-        console.log('URL search params:', window.location.search);
-        console.log('attendance_id param:', attendanceId);
-        console.log('data param:', attendanceDataParam ? 'found' : 'NOT FOUND');
+        // Získáme username bota, abychom věděli, kam přesměrovat
+        const botUsername = urlParams.get('bot'); 
 
         let attendanceData = null;
 
-        // Parse attendance data from URL
+        // 2. Parsování dat pro naplnění formuláře
         if (attendanceDataParam) {
             try {
                 attendanceData = JSON.parse(decodeURIComponent(attendanceDataParam));
-                console.log('Parsed attendance data:', attendanceData);
             } catch (e) {
-                showError('Failed to parse attendance data from URL');
-                console.error('Error parsing attendance data:', e);
+                showError('Failed to parse attendance data');
+                console.error(e);
             }
-        } else {
-            console.warn('No \'data\' parameter found in URL');
         }
-
-        // Try to get from initData (start_param or initDataUnsafe)
+        
+        // Fallback pro initData (pokud by data nešla přes URL)
         if (!attendanceData && tg.initDataUnsafe?.start_param) {
             try {
                 const parsed = JSON.parse(tg.initDataUnsafe.start_param);
-                // start_param might contain the full data object or just attendance_id
-                if (parsed.attendance_id) {
-                    attendanceId = attendanceId || parsed.attendance_id.toString();
-                }
-                if (parsed.clock_in || parsed.clock_out) {
-                    attendanceData = parsed;
-                }
-            } catch (e) {
-                console.error('Error parsing start_param:', e);
-            }
+                if (parsed.attendance_id) attendanceId = parsed.attendance_id.toString();
+                if (parsed.clock_in) attendanceData = parsed;
+            } catch (e) { console.error(e); }
         }
 
-        // Also check if attendance_id is in initDataUnsafe directly
-        if (!attendanceId && tg.initDataUnsafe?.attendance_id) {
-            attendanceId = tg.initDataUnsafe.attendance_id.toString();
-        }
-
-        // If we have attendanceData but it contains attendance_id, use it
-        if (attendanceData && attendanceData.attendance_id) {
-            attendanceId = attendanceId || attendanceData.attendance_id.toString();
-        }
-
-        // Helper functions (defined early so they can be used)
+        // Pomocné funkce pro UI
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
-            if (errorDiv) {
-                errorDiv.textContent = message;
-                errorDiv.classList.add('show');
-                setTimeout(() => {
-                    errorDiv.classList.remove('show');
-                }, 5000);
-            } else {
-                console.error('Error:', message);
-            }
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => errorDiv.classList.remove('show'), 5000);
         }
 
-        function showSuccess(message) {
-            const successDiv = document.getElementById('successMessage');
-            if (successDiv) {
-                successDiv.textContent = message;
-                successDiv.classList.add('show');
-            }
+        function formatForInput(dateStr) {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '';
+            const pad = (num) => String(num).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
         }
 
-        function populateForm(data) {
-            // Convert UTC timestamps to local datetime-local format
-            // Format: YYYY-MM-DDTHH:mm (datetime-local format)
+        // 3. Naplnění formuláře
+        if (attendanceData) {
             try {
-                const clockIn = new Date(data.clock_in);
-                const clockOut = new Date(data.clock_out);
-
-                // Format for datetime-local input (YYYY-MM-DDTHH:mm)
-                const formatForInput = (date) => {
-                    if (isNaN(date.getTime())) {
-                        throw new Error('Invalid date');
-                    }
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const hours = String(date.getHours()).padStart(2, '0');
-                    const minutes = String(date.getMinutes()).padStart(2, '0');
-                    return `${year}-${month}-${day}T${hours}:${minutes}`;
-                };
-
-                document.getElementById('clockIn').value = formatForInput(clockIn);
-                document.getElementById('clockOut').value = formatForInput(clockOut);
-                document.getElementById('breakDuration').value = data.break_duration || 0;
-            } catch (error) {
-                console.error('Error populating form:', error);
-                showError('Failed to load attendance data. Invalid date format.');
+                document.getElementById('clockIn').value = formatForInput(attendanceData.clock_in);
+                document.getElementById('clockOut').value = formatForInput(attendanceData.clock_out);
+                document.getElementById('breakDuration').value = attendanceData.break_duration || 0;
+            } catch (e) {
+                showError('Error populating form');
             }
         }
 
-        // Validate we have required data
-        if (!attendanceId || !attendanceData) {
-            showError('Missing attendance data. Please open this app from the bot.');
-            document.getElementById('attendanceForm').style.display = 'none';
-        } else {
-            // Populate form with existing data
-            populateForm(attendanceData);
-        }
-
+        // Validace
         function validateForm() {
             const clockIn = new Date(document.getElementById('clockIn').value);
             const clockOut = new Date(document.getElementById('clockOut').value);
             const breakDuration = parseInt(document.getElementById('breakDuration').value, 10);
 
-            // Validate clock out is after clock in
             if (clockOut <= clockIn) {
                 showError('Clock out time must be after clock in time');
                 return false;
             }
-
-            // Validate break duration is non-negative
             if (breakDuration < 0) {
                 showError('Break duration cannot be negative');
                 return false;
             }
-
-            // Calculate working time in minutes
-            const workingTimeMinutes = Math.floor((clockOut - clockIn) / (1000 * 60));
-
-            // Validate break duration doesn't exceed working time
-            if (breakDuration > workingTimeMinutes) {
-                showError(`Break duration (${breakDuration} min) cannot exceed working time (${workingTimeMinutes} min)`);
-                return false;
-            }
-
             return true;
         }
 
-        function formatDateTimeForAPI(dateTimeLocal) {
-            // Convert datetime-local to ISO 8601 format with timezone
-            // datetime-local gives us local time, we need to convert to UTC ISO string
-            const date = new Date(dateTimeLocal);
-            return date.toISOString();
-        }
-
+        // 4. ODESLÁNÍ FORMULÁŘE (Hlavní oprava)
         document.getElementById('attendanceForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            if (!validateForm()) {
-                return;
-            }
-
-            // Validate attendance_id is available
+            if (!validateForm()) return;
             if (!attendanceId) {
-                showError('Missing attendance ID. Please open this app from the bot.');
+                showError('Missing attendance ID');
+                return;
+            }
+            if (!botUsername) {
+                showError('Bot username missing. Cannot save.');
                 return;
             }
 
-            // Show loading state
             const loadingDiv = document.getElementById('loading');
             const saveBtn = document.getElementById('saveBtn');
             loadingDiv.classList.add('show');
             saveBtn.disabled = true;
-            document.getElementById('errorMessage').classList.remove('show');
-            document.getElementById('successMessage').classList.remove('show');
 
             try {
-                // Get form values
-                const clockInInput = document.getElementById('clockIn').value;
-                const clockOutInput = document.getElementById('clockOut').value;
-                const breakDurationInput = document.getElementById('breakDuration').value;
+                // Získání hodnot z inputů jako Date objekty
+                const clockInDate = new Date(document.getElementById('clockIn').value);
+                const clockOutDate = new Date(document.getElementById('clockOut').value);
+                const breakVal = document.getElementById('breakDuration').value;
 
-                // Validate inputs are not empty
-                if (!clockInInput || !clockOutInput || breakDurationInput === '') {
-                    throw new Error('All fields are required');
-                }
+                // Převod na Unix Timestamp (sekundy)
+                const inTs = Math.floor(clockInDate.getTime() / 1000);
+                const outTs = Math.floor(clockOutDate.getTime() / 1000);
 
-                const clockIn = formatDateTimeForAPI(clockInInput);
-                const clockOut = formatDateTimeForAPI(clockOutInput);
-                const breakDuration = parseInt(breakDurationInput, 10);
+                // Sestavení payloadu: ID_IN_OUT_BREAK
+                const payload = `${attendanceId}_${inTs}_${outTs}_${breakVal}`;
 
-                // Validate parsed values
-                if (isNaN(breakDuration)) {
-                    throw new Error('Invalid break duration');
-                }
-
-                // Prepare data to send
-                const dataToSend = {
-                    attendance_id: parseInt(attendanceId, 10),
-                    clock_in: clockIn,
-                    clock_out: clockOut,
-                    break_duration: breakDuration
-                };
-
-                // Validate attendance_id is a valid number
-                if (isNaN(dataToSend.attendance_id)) {
-                    throw new Error('Invalid attendance ID');
-                }
-
-                // Send data back to bot via Telegram WebApp API
-                tg.sendData(JSON.stringify(dataToSend));
-
-                // Show success message briefly before closing
-                showSuccess('Changes saved successfully!');
+                // Konstrukce Deep Linku
+                // DŮLEŽITÉ: Parametr se musí jmenovat 'start'
+                const deepLink = `https://t.me/${botUsername}?start=upd_${payload}`;
                 
-                // Close the WebApp after a short delay
-                setTimeout(() => {
-                    tg.close();
-                }, 1000);
+                // Otevření odkazu = přesměrování zpět do bota a spuštění akce
+                tg.openTelegramLink(deepLink);
+                tg.close();
 
             } catch (error) {
-                console.error('Error saving data:', error);
-                showError(error.message || 'Failed to save changes. Please try again.');
+                console.error('Error saving:', error);
+                showError(error.message);
                 loadingDiv.classList.remove('show');
                 saveBtn.disabled = false;
             }
         });
 
-        document.getElementById('cancelBtn').addEventListener('click', () => {
-            tg.close();
-        });
-
-        // Handle back button
-        tg.BackButton.onClick(() => {
-            tg.close();
-        });
+        document.getElementById('cancelBtn').addEventListener('click', () => tg.close());
+        tg.BackButton.onClick(() => tg.close());
         tg.BackButton.show();
     </script>
 </body>

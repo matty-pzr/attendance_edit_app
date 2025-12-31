@@ -1,25 +1,126 @@
-// 1. Initialize Telegram WebApp
-const tg = window.Telegram.WebApp;
-tg.expand();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Attendance</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-button-color: #3390ec;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-secondary-bg-color: #f4f4f5;
+        }
 
-// 2. Read the data from the URL
-const urlParams = new URLSearchParams(window.location.search);
-const rawData = urlParams.get('data');
-const attendanceData = rawData ? JSON.parse(decodeURIComponent(rawData)) : {};
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-theme-secondary-bg-color);
+            color: var(--tg-theme-text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
 
-// 3. (Optional) Use Telegram's Main Button for a native look
-tg.MainButton.setText("SAVE CHANGES");
-tg.MainButton.show();
+        .card {
+            background-color: var(--tg-theme-bg-color);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
 
-// 4. Send data back and close when the button is clicked
-tg.MainButton.onClick(() => {
-    // Collect your edited data from your HTML inputs
-    const updatedData = {
-        "Alice": document.getElementById('alice-status').value,
-        "Bob": "present", // example
-        "Charlie": "present"
-    };
+        .form-group {
+            margin-bottom: 15px;
+        }
 
-    // This sends the string to the bot and CLOSES the app automatically
-    tg.sendData(JSON.stringify(updatedData));
-});
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            opacity: 0.7;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            background: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+        }
+
+        h2 { margin: 0 0 10px 0; font-size: 18px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Attendance Details</h2>
+        <div id="form-container">
+            <div class="form-group">
+                <label>Clock In</label>
+                <input type="text" id="clock_in">
+            </div>
+            <div class="form-group">
+                <label>Clock Out</label>
+                <input type="text" id="clock_out">
+            </div>
+            <div class="form-group">
+                <label>Break Duration (minutes)</label>
+                <input type="number" id="break_duration">
+            </div>
+            <input type="hidden" id="attendance_id">
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Opens the app to full height
+
+        // 1. Parse data from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawData = urlParams.get('data');
+        
+        if (rawData) {
+            try {
+                const data = JSON.parse(decodeURIComponent(rawData));
+                
+                // 2. Fill the inputs with received data
+                document.getElementById('attendance_id').value = data.id || '';
+                document.getElementById('clock_in').value = data.clock_in || '';
+                document.getElementById('clock_out').value = data.clock_out || '';
+                document.getElementById('break_duration').value = data.break_duration || 0;
+            } catch (e) {
+                console.error("Failed to parse data", e);
+            }
+        }
+
+        // 3. Configure the Telegram Main Button
+        tg.MainButton.setText("SAVE ATTENDANCE");
+        tg.MainButton.show();
+
+        // 4. Handle Save Click
+        tg.MainButton.onClick(() => {
+            const updatedData = {
+                id: document.getElementById('attendance_id').value,
+                clock_in: document.getElementById('clock_in').value,
+                clock_out: document.getElementById('clock_out').value,
+                break_duration: parseInt(document.getElementById('break_duration').value)
+            };
+
+            // Send data back to the bot
+            // Note: This only works in private chats
+            tg.sendData(JSON.stringify(updatedData));
+        });
+
+        // Inform Telegram that the app is ready
+        tg.ready();
+    </script>
+</body>
+</html>
